@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com; img-src 'self' data:;">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <title>Lagro NFC-ID</title>
+    <style>
+        /* imports */
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+        /* base */
+        body {
+            scroll-behavior: smooth;
+            font-family: 'Poppins', sans-serif;
+            overflow-x: hidden;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* prevent inspection */
+        img {
+            -webkit-user-drag: none;
+            -khtml-user-drag: none;
+            -moz-user-drag: none;
+            -o-user-drag: none;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        /* fade */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* btn */
+        .btn {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s ease;
+            z-index: 1;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(120deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: all 0.6s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+        /* nav */
+        .nav-link {
+            position: relative;
+            padding: 0.5rem 0;
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: #8EB69B;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        /* modal */
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.7);
+            z-index: 1000;
+            width: 90%;
+            max-width: 450px;
+            background: rgba(22, 56, 50, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            opacity: 0;
+            visibility: hidden;
+            display: none;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+            display: block;
+        }
+
+        /* overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.4s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* inputs */
+        .input-field {
+            background: rgba(5, 31, 32, 0.5);
+            border: 1px solid rgba(142, 182, 155, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            border-color: #8EB69B;
+            box-shadow: 0 0 0 2px rgba(142, 182, 155, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* error */
+        .error-message {
+            color: #ef4444;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+
+        .error-message.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* loading */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* error shake */
+        .error-shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* scroll top */
+        #backToTop {
+            position: fixed;
+            bottom: -50px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #235347, #8EB69B);
+            color: white;
+            font-size: 24px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        #backToTop.visible {
+            bottom: 20px;
+        }
+
+        #backToTop:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* progress */
+        .scroll-progress {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0%;
+            height: 3px;
+            background: linear-gradient(to right, #235347, #8EB69B);
+            z-index: 1000;
+            transition: width 0.1s ease;
+        }
+
+        /* scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #051F20;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #235347;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8EB69B;
+        }
+    </style>
+</head>
+<body class="bg-[#051F20] text-white font-sans">
+    <!-- progress -->
+    <div class="scroll-progress"></div>
+
+    <!-- nav -->
+<nav class="bg-[#0B2B26]/90 backdrop-blur-lg sticky top-0 z-50 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-6 py-4">
+        <div class="flex justify-between items-center">
+            <div class="logo transform hover:scale-105 transition-transform duration-300">
+                <img src="/image/logo.png" alt="Lagro Image" class="w-12 h-12">
+            </div>
+            <div class="flex items-center space-x-8">
+                <ul class="flex items-center space-x-8">
+                    <li><a href="#Home" class="nav-link text-white hover:text-[#8EB69B] transition-colors duration-300">Home</a></li>
+                    <li><a href="#About" class="nav-link text-white hover:text-[#8EB69B] transition-colors duration-300">About</a></li>
+                    <li><a href="#Team" class="nav-link text-white hover:text-[#8EB69B] transition-colors duration-300">Team</a></li>
+                    <li><a href="#Contact" class="nav-link text-white hover:text-[#8EB69B] transition-colors duration-300">Contact</a></li>
+                </ul>
+                <button id="logoutBtn" class="btn px-6 py-2 bg-[#235347] text-white rounded-lg hover:bg-[#8EB69B] ml-4">
+                    Logout
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+    <!-- main -->
+    <main>
+        <!-- home -->
+<section id="Home" class="relative min-h-screen flex items-center justify-center overflow-hidden" data-aos="fade-up">
+    <!-- bg img-->
+    <div class="absolute inset-0">
+        <img src="/image/bg1.jpg" alt="Background" class="w-full h-full object-cover opacity-90">
+    </div>
+    <!-- gradient-->
+    <div class="absolute inset-0 bg-gradient-to-b from-[#163832]/90 to-[#0B2B26]/90"></div>
+    <div class="relative z-10 text-center px-4">
+        <h1 class="text-5xl md:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-[#8EB69B]" 
+            data-aos="zoom-in" data-aos-delay="200">
+            LAGRO NFC-ID
+        </h1>
+        <p class="text-xl md:text-3xl mb-12 text-[#8EB69B] opacity-90" 
+            data-aos="fade-up" data-aos-delay="400">
+            An Alternative NFC School ID System
+        </p>
+        <div class="flex flex-col sm:flex-row justify-center gap-4" data-aos="fade-up" data-aos-delay="600">
+            <button id="openLoginModal" 
+                class="btn px-8 py-4 bg-[#235347] text-white rounded-lg hover:bg-[#8EB69B] transform hover:scale-105">
+                Login
+            </button>
+            <button id="openRegisterModal" 
+                class="btn px-8 py-4 bg-transparent border-2 border-[#235347] text-white rounded-lg hover:bg-[#235347] transform hover:scale-105">
+                Register
+            </button>
+        </div>
+    </div>
+</section>
+
+        <!-- about -->
+        <section id="About" class="relative py-20 overflow-hidden bg-[#163832]" data-aos="fade-up">
+            <div class="max-w-4xl mx-auto px-6 text-center">
+                <h1 class="text-4xl md:text-5xl font-bold mb-8" data-aos="fade-down">About</h1>
+                <p class="text-lg md:text-xl text-[#DAF1DE] leading-relaxed" data-aos="fade-up" data-aos-delay="200">
+                    Lagro High School's NFC ID system provides an alternative, streamlined, and efficient method for managing student identities.
+                </p>
+            </div>
+        </section>
+
+        <!-- team -->
+        <section id="Team" class="bg-[#0B2B26] py-20">
+            <div class="max-w-7xl mx-auto px-6">
+                <h1 class="text-4xl md:text-5xl font-bold text-center mb-12" data-aos="fade-down">Our Team</h1>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-8">
+                    <!-- member 1 -->
+                    <div class="team-card bg-[#235347]/90 backdrop-blur-lg p-6 rounded-xl shadow-lg" data-aos="fade-up" data-aos-delay="100">
+                        <div class="relative mb-4">
+                            <img src="/image/member1.jpg" alt="Member 1" class="w-24 h-24 rounded-full mx-auto ring-4 ring-[#8EB69B]/30">
+                            <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#8EB69B] px-3 py-1 rounded-full text-xs">
+                                Leader
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <h2 class="text-xl font-semibold mb-2">Ivan Agaloos</h2>
+                            <p class="text-sm text-[#DAF1DE]/80">Team Leader</p>
+                        </div>
+                    </div>
+
+                    <!-- member 2 -->
+                    <div class="team-card bg-[#235347]/90 backdrop-blur-lg p-6 rounded-xl shadow-lg" data-aos="fade-up" data-aos-delay="200">
+                        <div class="relative mb-4">
+                            <img src="/image/member2.jpg" alt="Member 2" class="w-24 h-24 rounded-full mx-auto ring-4 ring-[#8EB69B]/30">
+                            <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#8EB69B] px-3 py-1 rounded-full text-xs">
+                                Programmer
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <h2 class="text-xl font-semibold mb-2">Mandie Limabaga</h2>
+                            <p class="text-sm text-[#DAF1DE]/80">Programmer</p>
+                        </div>
+                    </div>
+
+                    <!-- member 3 -->
+                    <div class="team-card bg-[#235347]/90 backdrop-blur-lg p-6 rounded-xl shadow-lg" data-aos="fade-up" data-aos-delay="300">
+                        <div class="relative mb-4">
+                            <img src="/image/member3.jpg" alt="Member 3" class="w-24 h-24 rounded-full mx-auto ring-4 ring-[#8EB69B]/30">
+                            <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#8EB69B] px-3 py-1 rounded-full text-xs">
+                                Researcher
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <h2 class="text-xl font-semibold mb-2">Gale Refe</h2>
+                            <p class="text-sm text-[#DAF1DE]/80">Researcher</p>
+                        </div>
+                    </div>
+
+                    <!-- member 4 -->
+                    <div class="team-card bg-[#235347]/90 backdrop-blur-lg p-6 rounded-xl shadow-lg" data-aos="fade-up" data-aos-delay="400">
+                        <div class="relative mb-4">
+                            <img src="/image/member4.jpg" alt="Member 4" class="w-24 h-24 rounded-full mx-auto ring-4 ring-[#8EB69B]/30">
+                            <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#8EB69B] px-3 py-1 rounded-full text-xs">
+                                Researcher
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <h2 class="text-xl font-semibold mb-2">Nelgie Sedayon</h2>
+                            <p class="text-sm text-[#DAF1DE]/80">Researcher/UI</p>
+                        </div>
+                    </div>
+
+                    <!-- member 5 -->
+                    <div class="team-card bg-[#235347]/90 backdrop-blur-lg p-6 rounded-xl shadow-lg" data-aos="fade-up" data-aos-delay="500">
+                        <div class="relative mb-4">
+                            <img src="/image/member5.jpg" alt="Member 5" class="w-24 h-24 rounded-full mx-auto ring-4 ring-[#8EB69B]/30">
+                            <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#8EB69B] px-3 py-1 rounded-full text-xs">
+                                Researcher
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <h2 class="text-xl font-semibold mb-2">Carl Somera</h2>
+                            <p class="text-sm text-[#DAF1DE]/80">Researcher</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- contact -->
+        <section id="Contact" class="bg-[#163832] py-20" data-aos="fade-up">
+            <div class="max-w-4xl mx-auto px-6">
+                <h1 class="text-4xl md:text-5xl font-bold text-center mb-12" data-aos="fade-down">Contact Us</h1>
+                <form id="contactForm" action="#" method="POST" class="max-w-md mx-auto space-y-6">
+                    <div class="space-y-2" data-aos="fade-up" data-aos-delay="200">
+                        <input type="text" 
+                            name="name"
+                            placeholder="Your Name" 
+                            required
+                            class="input-field w-full p-4 rounded-lg outline-none text-white">
+                        <div class="error-message"></div>
+                    </div>
+                    <div class="space-y-2" data-aos="fade-up" data-aos-delay="300">
+                        <input type="email" 
+                            name="email"
+                            placeholder="Your Email" 
+                            required
+                            class="input-field w-full p-4 rounded-lg outline-none text-white">
+                        <div class="error-message"></div>
+                    </div>
+                    <div class="space-y-2" data-aos="fade-up" data-aos-delay="400">
+                        <textarea 
+                            name="message"
+                            placeholder="Your Message" 
+                            rows="4" 
+                            required
+                            class="input-field w-full p-4 rounded-lg outline-none text-white resize-none"></textarea>
+                        <div class="error-message"></div>
+                    </div>
+                    <button type="submit" data-aos="fade-up" data-aos-delay="500"
+                        class="btn w-full py-4 bg-[#235347] text-white rounded-lg hover:bg-[#8EB69B] transform hover:scale-105 transition-all duration-300">
+                        Send Message
+                    </button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+        <!-- modals -->
+    <div id="loginModal" class="modal">
+        <div class="p-8">
+            <h2 class="text-2xl font-bold mb-6 text-center">Welcome Back</h2>
+            <form id="loginForm" action="login.php" method="POST" class="space-y-6">
+                <div class="space-y-2">
+                    <input type="email" 
+                        name="email" 
+                        placeholder="Email" 
+                        required
+                        class="input-field w-full p-4 rounded-lg outline-none text-white"
+                    >
+                    <div id="emailError" class="error-message"></div>
+                </div>
+                <div class="space-y-2">
+                    <input type="password" 
+                        name="password" 
+                        placeholder="Password" 
+                        required
+                        minlength="8"
+                        class="input-field w-full p-4 rounded-lg outline-none text-white"
+                    >
+                    <div id="passwordError" class="error-message"></div>
+                </div>
+                <div id="loginError" class="error-message text-center"></div>
+                <button type="submit" 
+                    class="btn w-full py-4 bg-[#235347] text-white rounded-lg hover:bg-[#8EB69B] transform hover:scale-105 transition-all duration-300"
+                >
+                    Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="registerModal" class="modal">
+        <div class="p-8">
+            <h2 class="text-2xl font-bold mb-6 text-center">Create Account</h2>
+            <form id="registerForm" action="register.php" method="POST" class="space-y-6">
+                <div class="space-y-2">
+                    <input type="text" 
+                        name="fullName" 
+                        placeholder="Full Name" 
+                        required
+                        minlength="3"
+                        class="input-field w-full p-4 rounded-lg outline-none text-white"
+                    >
+                    <div id="nameError" class="error-message"></div>
+                </div>
+                <div class="space-y-2">
+                    <input type="email" 
+                        name="email" 
+                        placeholder="Email" 
+                        required
+                        class="input-field w-full p-4 rounded-lg outline-none text-white"
+                    >
+                    <div id="regEmailError" class="error-message"></div>
+                </div>
+                <div class="space-y-2">
+                    <input type="password" 
+                        name="password" 
+                        placeholder="Password" 
+                        required
+                        minlength="8"
+                        class="input-field w-full p-4 rounded-lg outline-none text-white"
+                    >
+                    <div id="regPasswordError" class="error-message"></div>
+                </div>
+                <div id="registerError" class="error-message text-center"></div>
+                <button type="submit" 
+                    class="btn w-full py-4 bg-[#235347] text-white rounded-lg hover:bg-[#8EB69B] transform hover:scale-105 transition-all duration-300"
+                >
+                    Register
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- overlay -->
+    <div id="overlay" class="modal-overlay"></div>
+
+    <!-- scroll top -->
+    <div id="backToTop">↑</div>
+
+    <script>
+        // aos init
+        AOS.init({
+            duration: 800,
+            easing: 'ease-out',
+            once: true
+        });
+    
+        // progress
+        const scrollProgress = document.querySelector('.scroll-progress');
+        window.addEventListener('scroll', () => {
+            const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const progress = (window.pageYOffset / totalHeight) * 100;
+            scrollProgress.style.width = `${progress}%`;
+        });
+    
+        // fade in
+        const sections = document.querySelectorAll('.fade-in');
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    entry.target.style.transform = 'translateY(0)';
+                    entry.target.style.opacity = '1';
+                }
+            });
+        }, { 
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        });
+    
+        sections.forEach(section => observer.observe(section));
+    
+        // smooth scroll
+        const smoothScroll = (target, duration) => {
+            const targetPosition = target.getBoundingClientRect().top;
+            const startPosition = window.pageYOffset;
+            const distance = targetPosition;
+            let startTime = null;
+    
+            function animation(currentTime) {
+                if (startTime === null) startTime = currentTime;
+                const timeElapsed = currentTime - startTime;
+                const run = ease(timeElapsed, startPosition, distance, duration);
+                window.scrollTo(0, run);
+                if (timeElapsed < duration) requestAnimationFrame(animation);
+            }
+    
+            function ease(t, b, c, d) {
+                t /= d / 2;
+                if (t < 1) return c / 2 * t * t + b;
+                t--;
+                return -c / 2 * (t * (t - 2) - 1) + b;
+            }
+    
+            requestAnimationFrame(animation);
+        };
+    
+        // nav scroll
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').slice(1);
+                const targetSection = document.getElementById(targetId);
+                if (targetSection) {
+                    smoothScroll(targetSection, 1000);
+                }
+            });
+        });
+    
+        // scroll top
+        const backToTop = document.getElementById('backToTop');
+        let lastScrollTop = 0;
+    
+        window.addEventListener('scroll', () => {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            if (scrollTop > 300) {
+                backToTop.classList.add('visible');
+                if (scrollTop > lastScrollTop) {
+                    backToTop.style.transform = 'translateY(20px)';
+                } else {
+                    backToTop.style.transform = 'translateY(0)';
+                }
+            } else {
+                backToTop.classList.remove('visible');
+            }
+            lastScrollTop = scrollTop;
+        });
+    
+        backToTop.addEventListener('click', () => {
+            smoothScroll(document.body, 1000);
+        });
+    
+        // modal controls
+        const openLoginModal = document.getElementById('openLoginModal');
+        const openRegisterModal = document.getElementById('openRegisterModal');
+        const loginModal = document.getElementById('loginModal');
+        const registerModal = document.getElementById('registerModal');
+        const overlay = document.getElementById('overlay');
+    
+        const openModal = (modal) => {
+            modal.classList.add('active');
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            modal.style.display = 'block';
+        };
+    
+        const closeModal = () => {
+            const activeModal = document.querySelector('.modal.active');
+            if (activeModal) {
+                activeModal.classList.remove('active');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+                activeModal.style.display = 'none';
+            }
+        };
+    
+        openLoginModal.addEventListener('click', () => openModal(loginModal));
+        openRegisterModal.addEventListener('click', () => openModal(registerModal));
+        overlay.addEventListener('click', closeModal);
+    
+        // login handler
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const button = this.querySelector('button[type="submit"]');
+            const originalText = button.textContent;
+            const emailInput = this.querySelector('input[name="email"]');
+            const passwordInput = this.querySelector('input[name="password"]');
+            
+            // clear errors
+            document.getElementById('emailError').textContent = '';
+            document.getElementById('passwordError').textContent = '';
+            document.getElementById('loginError').textContent = '';
+            
+            // loading
+            button.disabled = true;
+            button.innerHTML = '<span class="loading-spinner"></span> Logging in...';
+            
+            try {
+                const response = await fetch('login.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: emailInput.value,
+                        password: passwordInput.value
+                    })
+                });
+    
+                const data = await response.json();
+    
+                if (response.ok) {
+                    // success
+                    button.innerHTML = '✓ Success!';
+                    button.style.backgroundColor = '#8EB69B';
+                    localStorage.setItem('authToken', data.token);
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1000);
+                } else {
+                    // error handling
+                    button.innerHTML = '✕ Login Failed';
+                    button.style.backgroundColor = '#ef4444';
+                    
+                    if (data.errors) {
+                        if (data.errors.email) {
+                            document.getElementById('emailError').textContent = data.errors.email;
+                            document.getElementById('emailError').classList.add('show');
+                        }
+                        if (data.errors.password) {
+                            document.getElementById('passwordError').textContent = data.errors.password;
+                            document.getElementById('passwordError').classList.add('show');
+                        }
+                    } else {
+                        document.getElementById('loginError').textContent = data.message || 'Invalid credentials';
+                        document.getElementById('loginError').classList.add('show');
+                    }
+                    
+                    setTimeout(() => {
+                        button.disabled = false;
+                        button.innerHTML = originalText;
+                        button.style.backgroundColor = '';
+                    }, 2000);
+                }
+            } catch (error) {
+                // network error
+                button.innerHTML = '✕ Connection Error';
+                button.style.backgroundColor = '#ef4444';
+                document.getElementById('loginError').textContent = 'Connection failed. Please try again.';
+                document.getElementById('loginError').classList.add('show');
+                
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                    button.style.backgroundColor = '';
+                }, 2000);
+            }
+        });
+    
+        // register handler
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const button = this.querySelector('button[type="submit"]');
+            const originalText = button.textContent;
+            const nameInput = this.querySelector('input[name="fullName"]');
+            const emailInput = this.querySelector('input[name="email"]');
+            const passwordInput = this.querySelector('input[name="password"]');
+            
+            // clear errors
+            document.getElementById('nameError').textContent = '';
+            document.getElementById('regEmailError').textContent = '';
+            document.getElementById('regPasswordError').textContent = '';
+            document.getElementById('registerError').textContent = '';
+            
+            // loading
+            button.disabled = true;
+            button.innerHTML = '<span class="loading-spinner"></span> Creating Account...';
+            
+            try {
+                const response = await fetch('register.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        fullName: nameInput.value,
+                        email: emailInput.value,
+                        password: passwordInput.value
+                    })
+                });
+    
+                const data = await response.json();
+    
+                if (response.ok) {
+                    // success
+                    button.innerHTML = '✓ Account Created!';
+                    button.style.backgroundColor = '#8EB69B';
+                    setTimeout(() => {
+                        closeModal();
+                        openModal(loginModal);
+                    }, 1500);
+                } else {
+                    // error handling
+                    button.innerHTML = '✕ Registration Failed';
+                    button.style.backgroundColor = '#ef4444';
+                    
+                    if (data.errors) {
+                        if (data.errors.fullName) {
+                            document.getElementById('nameError').textContent = data.errors.fullName;
+                            document.getElementById('nameError').classList.add('show');
+                        }
+                        if (data.errors.email) {
+                            document.getElementById('regEmailError').textContent = data.errors.email;
+                            document.getElementById('regEmailError').classList.add('show');
+                        }
+                        if (data.errors.password) {
+                            document.getElementById('regPasswordError').textContent = data.errors.password;
+                            document.getElementById('regPasswordError').classList.add('show');
+                        }
+                    } else {
+                        document.getElementById('registerError').textContent = data.message || 'Registration failed';
+                        document.getElementById('registerError').classList.add('show');
+                    }
+                    
+                    setTimeout(() => {
+                        button.disabled = false;
+                        button.innerHTML = originalText;
+                        button.style.backgroundColor = '';
+                    }, 2000);
+                }
+            } catch (error) {
+                // network error
+                button.innerHTML = '✕ Connection Error';
+                button.style.backgroundColor = '#ef4444';
+                document.getElementById('registerError').textContent = 'Connection failed. Please try again.';
+                document.getElementById('registerError').classList.add('show');
+                
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                    button.style.backgroundColor = '';
+                }, 2000);
+            }
+        });
+    
+        // prevent inspection
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+        document.addEventListener('keydown', (e) => {
+            if (
+                (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) ||
+                (e.ctrlKey && e.keyCode === 85) ||
+                (e.keyCode === 123)
+            ) {
+                e.preventDefault();
+            }
+        });
+    
+        // escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // logout handler
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('logout.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = 'index.html';
+                } else {
+                    console.error('Logout failed');
+                }
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        });
+</script>
+</body>
+</html>
